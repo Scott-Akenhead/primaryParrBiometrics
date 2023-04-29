@@ -1,0 +1,140 @@
+---
+title: OSO Parr Length Weight Summary
+author: Braden Judson, Scott A. Akenhead
+date: " `r Sys.Date()` "
+date-format: "YYYY-MM-DD"
+format:
+  pdf:
+    documentclass: article
+    toc: true
+editor: visual
+execute: 
+  cache: true
+---
+
+# Osoyoos Lake Sockeye Parr: Length and Weight Summary
+
+```{r setup}
+#| echo: false
+#| include: false
+# getwd()
+options(show.signif.stars = FALSE)
+library(tidyr);library(dplyr);library(ggplot2)
+```
+
+```{r local_functions}
+#| include: false
+# ggplot theme via Braden Judson github bioinformatics6020_assignment
+Custom_Theme <- theme_bw() + theme(panel.background = element_rect(fill =  "white", colour = "black", linetype = "solid"), panel.grid.minor = element_line(colour = "white"), plot.caption = element_text(hjust = 0, vjust = 1, size = 12))
+DOJY <- function(mon,day){  # vectorized version
+    # Day of Julian Year
+    # mon as 1 to 12 or "Jan" to "Dec" or "January" to "December"
+    # add 10 for solar day (Dec 21 = DOJY 355). add 1 if leap year and DOJY > 58
+    prev_end_doy = c(0,31,59,90,120,151,181,212,243,273,304,334)
+    # first the easy one
+    if(is.numeric(mon))return(prev_end_doy[mon]+day) # works for vector arguments
+    # then long or shor nomth names get convereted to a number.
+    n = length(mon)
+    mon_n = integer(n) # number for month TBD
+    month_char=month.abb  # short names from  R
+    if(max(nchar(mon)) > 3)  month_char=month.name #l long names from R 
+    for(j in 1:n) mon_n[j] = which(month_char  %in% mon[j])
+    return(prev_end_doy[mon_n]+day)
+}
+#examples 
+#obs_day= c(26,  4, 13, 28, 18)
+#DOJY1(mon=c(5,  8,  9, 11,  1), obs_day) # 146 216 256 332  18
+#DOJY1(mon=c('May','Aug','Sep','Nov','Jan'),obs_day)
+#DOJY1(mon=c('May','August','September','November','January'),obs_day)
+```
+
+```{r}
+parr <- read.csv("data/OSO_ATS_age0_summary_nov4.2022.csv")  # Read in csv.
+# Add season factor. Arbitrary right now.
+parr$season <- case_when(           
+    between(parr$month, 4, 9) ~ "W",   # September to March is Winter.
+    !between(parr$month, 4, 9) ~ "S"   # April to August is Summer.
+)
+# Add day of the month
+parr$day <- parr[,1] %>% strsplit('/') %>% simplify2array %>% `[`(2,) %>% as.numeric
+# Add day of the Julian year
+parr$jday <-with(parr, DOJY(month,day)) # 1 to 365 not 366
+# Add day of parr and presmolt life, across calendar year end.
+parr$smolt_day <- parr$jday  # default, unless
+j <- with( parr, year==smolt_yr); # obs of smolt life is in 2nd calendar year
+parr$smolt_day[j] <- parr$smolt_day[j]+365 # so smolt_day greater than jday
+
+noquote(colnames(parr)) #  99 rows 12 cols
+
+```
+
+## Explore Lengths
+
+Summary statistics and frequency distribution.
+
+```{r}
+summary(parr$length_mean_cm); 
+par(tcl=0.2)
+hist(parr$length_mean_cm, col = "wheat", main='')
+box() 
+```
+
+```{r}
+#| warning: false
+ggplot (data=parr, aes(x=smolt_day, y=length_mean_cm))+ Custom_Theme+
+    geom_point()
+```
+
+## Explore Weights
+
+Summary statistics and frequency distribution.
+
+```{r}
+summary(parr$mass_mean_g); 
+par(tcl=0.2)
+hist(parr$mass_mean_g,col="wheat", main=''); box()   
+```
+
+```{r}
+#| warning: false
+ggplot (data=parr, aes(x=smolt_day, y=mass_mean_g))+ Custom_Theme+
+    geom_point()
+```
+
+## Length-Weight Regressions
+
+First, linear
+
+```{r}
+#| warning: false
+ggplot(data = parr) + Custom_Theme+
+  geom_point(aes(x = length_mean_cm, 
+                 y = mass_mean_g))
+summary(lm( mass_mean_g ~ length_mean_cm, data=parr))
+```
+
+Second, allometric: weight is proportional to length cubed.
+
+```{r}
+#| warning: false
+ggplot(data = parr) + Custom_Theme+
+  geom_point(aes(x = (length_mean_cm)^3, 
+                 y = mass_mean_g))
+summary(lm( mass_mean_g ~ I(length_mean_cm^3), data=parr))
+```
+
+Third, power law
+
+from $W=aL^b$, plot $\text{log}(W) = \text{log}(W)$.
+
+```{r}
+#| warning: false
+ggplot(data = parr, aes(x= length_mean_cm, y= mass_mean_g),) +
+        scale_x_log10() +scale_y_log10() + geom_point() +
+    labs(x="log_10 Length (cm)", x="log_10 Weight (g)")
+
+
+summary(lm( log(mass_mean_g) ~ log(length_mean_cm), data=parr))
+```
+
+Did we learn anything?

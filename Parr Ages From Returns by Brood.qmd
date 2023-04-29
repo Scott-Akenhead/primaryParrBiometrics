@@ -1,0 +1,100 @@
+---
+title: "Parr Ages from Returns By Brood, Osoyoos Lake"
+author: "Scott A. Akenhead, Braden Judson,Howard Stiff"
+format: pdf
+editor: visual
+---
+
+```{r setup}
+library(ggplot2); library (magrittr);
+    # /Users/Scott/Documents/Projects/OK SOX 2022/OK SOX Analysis/R functions 2022.R
+```
+
+```{r}
+# /Users/Scott/Documents/Projects/OK SOX 2022/OK SOX Analysis/R functions 2022.R
+source ('R functions 2022.R') 
+```
+
+## Read Returns By Brood Year
+
+This is to examine two phenomena:
+
+1.  Parr ages. The freshwater age composition of returns is an indicator of parr and smolt age composition, enabling correct attribution of parr abundance to spawner abundance.
+
+2.  Stock-Recruit plot. The integral of survivals through all life stages and associated habitats.
+
+### Source
+
+OSO SOX Annual Returns by FW Age by Brood in a Google Sheet prepared by Braden Judson,
+
+https://docs.google.com/spreadsheets/d/1TnXjffizTjVgZROX7xb3YgmV-bWTnAZPmJzCIwtC_RY/edit#gid=0
+
+```{r}
+#| echo: false
+cloud = 'https://docs.google.com/spreadsheets/d/1TnXjffizTjVgZROX7xb3YgmV-bWTnAZPmJzCIwtC_RY'
+# only 1 sheet. 
+local = 'data/Adult Returns by Brood Year.Rdata'
+returns_BY <- Read_local_or_cloud(local, cloud) 
+returns_BY <- as.data.frame(returns_BY[-46, ]) # drop last row: Grand Total. Not a tibble
+returns_BY$Brood_Year <- unlist(returns_BY$Brood_Year) # was a list. How?
+returns_BY$lbl <- substr(as.character(returns_BY$Brood_Year),3,4)
+kable(returns_BY[, c(1,2,4,6,10)], col.names = c("Brood", "Age 1.x", "Age 2.x", "Age 3.x","Total") )
+```
+
+#### Plot Time Series
+
+```{r}
+#| label: plt-ar_by_tot
+#| fig-cap: "Osoyoos Lake Adult Returns, Total by Brood Year-Parr, 1975-2019"
+ggplot(data=returns_BY, aes(x=Brood_Year, y=Total*1e-6)) + theme_bw() + # Custom_Theme() +
+  geom_line() + 
+  geom_label(aes(label = lbl), size=2,label.padding = unit(0.1, "lines"))+
+    labs(y="Returns (millions)")
+#  coord_cartesian(xlim = c(0, 200000), ylim=c(0,12))+
+#  geom_abline(intercept=0,slope=7.587847e-05, colour='blue', linetype='dotted')+
+
+```
+
+```{r}
+#| label: plt-ar_by_age
+#| fig-cap: "Osoyoos Lake Adult Returns, fraction 1 freshwater year by Brood Year, 1975-2019"
+ggplot(data=returns_BY, aes(x=Brood_Year, y=Age_1.x_Fraction*100)) + theme_bw() + 
+  geom_line() + 
+#  geom_label(aes(label = lbl), size=2,label.padding = unit(0.1, "lines"))+
+    labs(y="Age 1 Returns (percent)", x="Brood Year")+ 
+  coord_cartesian(ylim = c(0, 100))
+#  geom_abline(intercept=0,slope=7.587847e-05, colour='blue', linetype='dotted')+
+
+```
+
+## Fraction of Parr
+
+**IF** a small abundance of spawners in brood year N, contributing age 0 par to the lake in year N+1 , follows a large abundance of spawers brood year in year N-1, contributing age 1 parr to the lake in year N+1,\
+**THEN** there could be large fraction of of age 1 parr in year N+1. Is this effect large enough to impact the regression of spawners in year N to *total parr* in that brood, observed in year N+1? Will there be ***too many parr*** per spawner in some years with low spawner abundance?
+
+This hypothesizes the fraction of age 1 in a brood is similar between years. An alternative hypothesis is the fraction of age 1 is larger in large broods, perhaps from slow growth due to competition for food, perhaps from saturation of small-size selective predators.
+
+IF adult freshwater ages by brood have the same ratio as parr ages by brood, then the ratio of age 2.x adults in brood year N-1 to age 1.x adults in year N is the ratio of age 1 parr to age 0 parr in the lake in brood year N_1.
+
+```{r}
+# age 1 parr proxy: age 1 brood N-1 parr in lake year N+1 
+a = returns_BY$Age_2.x_Abundance [-45] 
+# age 0 parr proxy: age 0 parr brood N in lake in year N+1
+b = returns_BY$Age_1.x_Abundance [-1]
+parr_age1_fraction = 100* a/(a+b)
+dat=data.frame(Brood=returns_BY$Brood_Year[-1], parr_age1_fraction)
+kable(dat, digits=c(0, 1))
+```
+
+```{r}
+
+#| label: plt-ratio_parr_
+#| fig-cap: "Osoyoos Lake parr age ratio based on freshwater ages of adult returns,1976-2019"
+ggplot(data=dat, aes(x=Brood, y=parr_age1_fraction)) + theme_bw() + 
+    labs(y="Fraction Age 1 Parr (percent)", x="Brood Year") + 
+    geom_line()  
+#    geom_label(aes(label = lbl), size=2,label.padding = unit(0.1, "lines"))+
+#    coord_cartesian(ylim = c(0, 100))
+#    geom_abline(intercept=0,slope=7.587847e-05, colour='blue', linetype='dotted')+
+    
+```
